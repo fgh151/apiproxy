@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"github.com/tkanos/gonfig"
 	"io/ioutil"
@@ -35,34 +36,40 @@ func main() {
 
 func ProxyServer(w http.ResponseWriter, r *http.Request) {
 
-	keys, ok := r.URL.Query()["url"]
-	//Получаем запрашиваемуй адрес
-	if !ok || len(keys[0]) < 1 {
-		log.Println("Url Param 'url' is missing")
-		return
-	}
-	//Валидация адреса
-	hostUrl, err := url.ParseRequestURI(keys[0])
+	req, err := prepareProxyRequest(r)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
 	if err != nil {
-		log.Println("Url Param 'url' is invalid")
-		return
-	}
-	//Шлем запрос
-	resp, err := http.Get(hostUrl.String())
-	if err != nil {
-		fmt.Println(err)
-		return
+		panic(err)
 	}
 	defer resp.Body.Close()
 
-	w.WriteHeader(resp.StatusCode)
-
-	//Возвращаем ответ
 	bodyBytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		log.Fatal(err)
 	}
-	bodyString := string(bodyBytes)
 
-	fmt.Fprintf(w, bodyString)
+	w.WriteHeader(resp.StatusCode)
+	w.Write(bodyBytes)
+
+}
+
+func prepareProxyRequest(current *http.Request) (*http.Request, error) {
+
+	queryUrl := current.URL.Query().Get("url")
+	decodedUrl, err := url.QueryUnescape(queryUrl)
+
+	if err != nil {
+		return nil, errors.New("cant decode url")
+	}
+
+	newRequest := current
+	newRequest.URL, err = url.Parse(decodedUrl)
+
+	if err != nil {
+		return nil, errors.New("cant parse url")
+	}
+
+	return newRequest, nil
 }
