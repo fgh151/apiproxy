@@ -2,8 +2,8 @@ package main
 
 import (
 	"errors"
-	"fmt"
-	"github.com/tkanos/gonfig"
+	"github.com/joho/godotenv"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -14,24 +14,19 @@ import (
 //Функци обработчик ошибок
 func errorHandler(err error) {
 	if err != nil {
-		os.Stderr.WriteString(err.Error())
+		_, _ = os.Stderr.WriteString(err.Error())
 	}
 }
 
-//Структура файла конфигурации
-type Configuration struct {
-	Port string
-}
-
 func main() {
-	configuration := Configuration{}
 
-	errorHandler(gonfig.GetConf(os.Args[1], &configuration))
+	err := godotenv.Load()
+	if err != nil {
+		panic(err)
+	}
 
 	http.HandleFunc("/", ProxyServer)
-	fmt.Println("Listen port " + configuration.Port)
-
-	errorHandler(http.ListenAndServe(configuration.Port, nil))
+	errorHandler(http.ListenAndServe(os.Getenv("PORT"), nil))
 }
 
 func ProxyServer(w http.ResponseWriter, r *http.Request) {
@@ -43,7 +38,9 @@ func ProxyServer(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		panic(err)
 	}
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		_ = Body.Close()
+	}(resp.Body)
 
 	bodyBytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
@@ -51,8 +48,7 @@ func ProxyServer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(resp.StatusCode)
-	w.Write(bodyBytes)
-
+	_, _ = w.Write(bodyBytes)
 }
 
 func prepareProxyRequest(current *http.Request) (*http.Request, error) {

@@ -4,15 +4,13 @@
 
 ## Запуск:
 ```bash
-apiproxy /path/to/config.json
+apiproxy
 ```
 
 ## Пример конфига:
 
-```json
-{
-  "Port": ":8000"
-}
+```ini
+PORT=8000
 ```
 ### Параметры конфига:
 * Port - порт для прослушивания
