@@ -1,6 +1,5 @@
 package main
 
-
 import (
 	"fmt"
 	"github.com/tkanos/gonfig"
@@ -12,7 +11,7 @@ import (
 )
 
 //Функци обработчик ошибок
-func errorHandler(err error)  {
+func errorHandler(err error) {
 	if err != nil {
 		os.Stderr.WriteString(err.Error())
 	}
@@ -20,7 +19,7 @@ func errorHandler(err error)  {
 
 //Структура файла конфигурации
 type Configuration struct {
-	Port         string
+	Port string
 }
 
 func main() {
@@ -29,16 +28,15 @@ func main() {
 	errorHandler(gonfig.GetConf(os.Args[1], &configuration))
 
 	http.HandleFunc("/", ProxyServer)
-	fmt.Println("Listen port "+configuration.Port)
+	fmt.Println("Listen port " + configuration.Port)
 
 	errorHandler(http.ListenAndServe(configuration.Port, nil))
 }
 
 func ProxyServer(w http.ResponseWriter, r *http.Request) {
 
-
 	keys, ok := r.URL.Query()["url"]
-//Получаем запрашиваемуй адрес
+	//Получаем запрашиваемуй адрес
 	if !ok || len(keys[0]) < 1 {
 		log.Println("Url Param 'url' is missing")
 		return
@@ -57,14 +55,14 @@ func ProxyServer(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 
-	//Возвращаем ответ
-	if resp.StatusCode == http.StatusOK {
-		bodyBytes, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			log.Fatal(err)
-		}
-		bodyString := string(bodyBytes)
+	w.WriteHeader(resp.StatusCode)
 
-		fmt.Fprintf(w, bodyString)
+	//Возвращаем ответ
+	bodyBytes, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Fatal(err)
 	}
+	bodyString := string(bodyBytes)
+
+	fmt.Fprintf(w, bodyString)
 }
