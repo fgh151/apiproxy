@@ -34,16 +34,21 @@ func ProxyServer(w http.ResponseWriter, r *http.Request) {
 	req, err := prepareProxyRequest(r)
 
 	if err != nil {
-		w.WriteHeader(500)
-		_, _ = w.Write([]byte("Err :" + err.Error()))
+		throw500(w, err)
 		return
 	}
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := doRequest(req)
+
 	if err != nil {
-		panic(err)
+		throw500(w, err)
+		return
 	}
+
+	sendResponse(w, resp)
+}
+
+func sendResponse(w http.ResponseWriter, resp *http.Response) {
 	defer func(Body io.ReadCloser) {
 		_ = Body.Close()
 	}(resp.Body)
@@ -55,6 +60,24 @@ func ProxyServer(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(resp.StatusCode)
 	_, _ = w.Write(bodyBytes)
+}
+
+func doRequest(r *http.Request) (*http.Response, error) {
+	client := &http.Client{}
+	resp, err := client.Do(r)
+	if err != nil {
+		return nil, err
+	}
+
+	//todo : there will be cache
+
+	return resp, nil
+}
+
+func throw500(w http.ResponseWriter, err error) {
+	errorHandler(err)
+	w.WriteHeader(500)
+	_, _ = w.Write([]byte("Err :" + err.Error()))
 }
 
 func prepareProxyRequest(current *http.Request) (*http.Request, error) {
