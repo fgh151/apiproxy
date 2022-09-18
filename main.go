@@ -1,14 +1,18 @@
 package main
 
 import (
+	"bytes"
+	"encoding/gob"
 	"errors"
 	"github.com/joho/godotenv"
+	"github.com/patrickmn/go-cache"
 	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
+	"time"
 )
 
 //Функци обработчик ошибок
@@ -63,15 +67,53 @@ func sendResponse(w http.ResponseWriter, resp *http.Response) {
 }
 
 func doRequest(r *http.Request) (*http.Response, error) {
-	client := &http.Client{}
-	resp, err := client.Do(r)
-	if err != nil {
-		return nil, err
+	return cacheable(r, func() (*http.Response, error) {
+		client := &http.Client{}
+		resp, err := client.Do(r)
+		if err != nil {
+			return nil, err
+		}
+
+		return resp, nil
+	})
+}
+
+type RequestCache struct {
+	Resp http.Response
+	Err  error
+}
+
+func (c RequestCache) Format() (*http.Response, error) {
+	return &c.Resp, c.Err
+}
+
+func cacheable(r *http.Request, fn func() (*http.Response, error)) (*http.Response, error) {
+
+	if os.Getenv("CACHE") == "true" {
+		key := Hash(r)
+		c := cache.New(5*time.Minute, 10*time.Minute)
+
+		itemFromCache, found := c.Get(key)
+		if found {
+			return itemFromCache.(RequestCache).Format()
+		}
+
+		resp, err := fn()
+
+		cacheItem := RequestCache{Resp: *resp, Err: err}
+
+		c.Set(key, cacheItem, cache.NoExpiration)
+
+		return resp, err
 	}
 
-	//todo : there will be cache
+	return fn()
+}
 
-	return resp, nil
+func Hash(s *http.Request) string {
+	var b bytes.Buffer
+	_ = gob.NewEncoder(&b).Encode(s)
+	return string(b.Bytes())
 }
 
 func throw500(w http.ResponseWriter, err error) {
