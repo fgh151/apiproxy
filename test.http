@@ -1,2 +1,3 @@
-GET http://localhost:8000/?url=https://ya.ru
+GET http://localhost:8000/
+Proxy-url: https://ya.ru
 Accept: application/json

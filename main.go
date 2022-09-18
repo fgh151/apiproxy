@@ -123,8 +123,7 @@ func throw500(w http.ResponseWriter, err error) {
 }
 
 func prepareProxyRequest(current *http.Request) (*http.Request, error) {
-
-	queryUrl := current.URL.Query().Get("url")
+	queryUrl := current.Header.Get("Proxy-url")
 
 	if queryUrl == "" {
 		return nil, errors.New("empty url")
