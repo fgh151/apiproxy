@@ -34,7 +34,6 @@ func main() {
 }
 
 func ProxyServer(w http.ResponseWriter, r *http.Request) {
-
 	req, err := prepareProxyRequest(r)
 
 	if err != nil {
@@ -42,17 +41,17 @@ func ProxyServer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := doRequest(req)
+	resp, err := sendRequest(req)
 
 	if err != nil {
 		throw500(w, err)
 		return
 	}
 
-	sendResponse(w, resp)
+	sendProxyResponse(w, resp)
 }
 
-func sendResponse(w http.ResponseWriter, resp *http.Response) {
+func sendProxyResponse(w http.ResponseWriter, resp *http.Response) {
 	defer func(Body io.ReadCloser) {
 		_ = Body.Close()
 	}(resp.Body)
@@ -66,29 +65,7 @@ func sendResponse(w http.ResponseWriter, resp *http.Response) {
 	_, _ = w.Write(bodyBytes)
 }
 
-func doRequest(r *http.Request) (*http.Response, error) {
-	return cacheable(r, func() (*http.Response, error) {
-		client := &http.Client{}
-		resp, err := client.Do(r)
-		if err != nil {
-			return nil, err
-		}
-
-		return resp, nil
-	})
-}
-
-type RequestCache struct {
-	Resp http.Response
-	Err  error
-}
-
-func (c RequestCache) Format() (*http.Response, error) {
-	return &c.Resp, c.Err
-}
-
-func cacheable(r *http.Request, fn func() (*http.Response, error)) (*http.Response, error) {
-
+func sendRequest(r *http.Request) (*http.Response, error) {
 	if os.Getenv("CACHE") == "true" {
 		key := Hash(r)
 		c := cache.New(5*time.Minute, 10*time.Minute)
@@ -98,7 +75,7 @@ func cacheable(r *http.Request, fn func() (*http.Response, error)) (*http.Respon
 			return itemFromCache.(RequestCache).Format()
 		}
 
-		resp, err := fn()
+		resp, err := sendRequestToServer(r)
 
 		cacheItem := RequestCache{Resp: *resp, Err: err}
 
@@ -107,7 +84,26 @@ func cacheable(r *http.Request, fn func() (*http.Response, error)) (*http.Respon
 		return resp, err
 	}
 
-	return fn()
+	return sendRequestToServer(r)
+}
+
+func sendRequestToServer(r *http.Request) (*http.Response, error) {
+	client := &http.Client{}
+	resp, err := client.Do(r)
+	if err != nil {
+		return nil, err
+	}
+
+	return resp, nil
+}
+
+type RequestCache struct {
+	Resp http.Response
+	Err  error
+}
+
+func (c RequestCache) Format() (*http.Response, error) {
+	return &c.Resp, c.Err
 }
 
 func Hash(s *http.Request) string {
